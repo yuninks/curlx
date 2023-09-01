@@ -42,10 +42,10 @@ type CurlParams struct {
 	Headers  map[string]interface{}
 	Cookies  interface{}
 	DataType dataType // FORM,JSON,XML
+	timeOutSecond int
 }
 
 var (
-	defaultTimeOut = 180 // 默认(最长超时时间)
 	// 默认的transport
 	transport http.Transport = http.Transport{
 		// Dial: func(netw, addr string) (net.Conn, error) {
@@ -81,6 +81,7 @@ type curlx struct {
 func NewCurlx() *curlx {
 	return &curlx{
 		transport: &transport,
+		timeOutSecond: 60
 	}
 }
 
@@ -116,7 +117,7 @@ func (c *curlx) WithInsecureSkipVerify() {
  * 设置超时时间,单位秒
  */
 func (c *curlx) WithTimeout(timeout int) {
-	c.transport.ResponseHeaderTimeout = time.Second * time.Duration(timeout)
+	c.timeOutSecond = timeout
 }
 
 /**
@@ -164,7 +165,7 @@ func (c *curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode i
  */
 func (c *curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Response, err error) {
 	client := &http.Client{
-		Timeout:   time.Second * time.Duration(defaultTimeOut), // 设置该条连接的超时
+		Timeout:   time.Second * time.Duration(p.timeOutSecond), // 设置该条连接的超时
 		Transport: c.transport,                                 //
 	}
 
