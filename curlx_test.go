@@ -8,6 +8,16 @@ import (
 	"testing"
 )
 
+func TestCurlx(t *testing.T) {
+	p := CurlParams{}
+	p.Url = "http://www.baidu.com"
+	p.Method = "GET"
+
+	resp, code, err := NewCurlx().Send(context.Background(), &p)
+	t.Log(resp, code, err)
+
+}
+
 func TestSendFile(t *testing.T) {
 
 	file, err := os.Open("./go.mod")
