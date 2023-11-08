@@ -6,11 +6,20 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+type FormParam struct {
+	Key    string `json:"key"`    // 字段名
+	Action string `json:"action"` // 动作(file/text)
+	Name   string `json:"name"`   // 文件名
+	Bytes  []byte `json:"bytes"`  // 文件内容
+	Value  string `json:"value"`  // 值
+}
 
 /**
  * 处理请求类型
@@ -80,6 +89,27 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 			if err == nil {
 				return bytes.NewReader(b), nil
 			}
+		} else if p.DataType == DataTypeForm {
+			// 表单上传（可能有文件）
+			// 文件上传的
+			formParam, ok := p.Params.([]*FormParam)
+			if ok {
+				body := &bytes.Buffer{}
+				writer := multipart.NewWriter(body)
+				for _, v := range formParam {
+					if v.Action == "file" {
+						part, _ := writer.CreateFormFile(v.Key, v.Name)
+						io.Copy(part, strings.NewReader(v.Value))
+					} else {
+						_ = writer.WriteField(v.Key, v.Value)
+					}
+				}
+				writer.Close()
+				p.Headers["Content-Type"] = writer.FormDataContentType()
+				return body, nil
+			}
+			return nil, errors.New("表单上传的参数格式不正确")
+
 		} else if p.DataType == DataTypeXml {
 			if _, ok := p.Headers["Content-Type"]; !ok {
 				p.Headers["Content-Type"] = "application/xml"
@@ -96,19 +126,6 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 				string_data = string(by)
 			}
 			return strings.NewReader(string_data), nil
-			// switch p.Params.(type) {
-			// case map[string]string:
-			// 	// 请求参数转换成xml结构
-			// 	b, err := goutils.Map2XML(p.Params.(map[string]string))
-			// 	if err == nil {
-			// 		return bytes.NewBuffer(b)
-			// 	}
-			// default:
-			// 	b, err := xml.Marshal(p.Params)
-			// 	if err == nil {
-			// 		return bytes.NewBuffer(b)
-			// 	}
-			// }
 		} else if p.DataType == DataTypeText {
 			if _, ok := p.Headers["Content-Type"]; !ok {
 				p.Headers["Content-Type"] = "text/plain"
@@ -123,8 +140,7 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 			}
 
 			return strings.NewReader(string_data), nil
-		} else {
-			// FORM,""
+		} else if p.DataType == DataTypeUrlEncoded {
 			if _, ok := p.Headers["Content-Type"]; !ok {
 				p.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 			}
@@ -165,6 +181,8 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 				}
 			}
 			return strings.NewReader(values.Encode()), nil
+		} else {
+			return nil, errors.New("不支持的数据类型")
 		}
 
 	}

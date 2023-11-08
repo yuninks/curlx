@@ -21,11 +21,12 @@ import (
 type dataType string
 
 const (
-	DataTypeForm   dataType = "form"
-	DataTypeJson   dataType = "json"
-	DataTypeXml    dataType = "xml"
-	DataTypeEncode dataType = "encode"
-	DataTypeText   dataType = "text"
+	DataTypeForm       dataType = "form"
+	DataTypeJson       dataType = "json"
+	DataTypeXml        dataType = "xml"
+	DataTypeEncode     dataType = "encode"
+	DataTypeText       dataType = "text"
+	DataTypeUrlEncoded dataType = "urlencode"
 )
 
 type method string
@@ -74,13 +75,13 @@ var (
 type DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 
 type curlx struct {
-	transport *http.Transport
+	transport     *http.Transport
 	timeOutSecond int
 }
 
 func NewCurlx() *curlx {
 	return &curlx{
-		transport: &transport,
+		transport:     &transport,
 		timeOutSecond: 180,
 	}
 }
@@ -166,7 +167,7 @@ func (c *curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode i
 func (c *curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Response, err error) {
 	client := &http.Client{
 		Timeout:   time.Second * time.Duration(c.timeOutSecond), // 设置该条连接的超时
-		Transport: c.transport,                                 //
+		Transport: c.transport,                                  //
 	}
 
 	err = p.parseMethod()
@@ -213,6 +214,7 @@ func (c *curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Respons
 	if err != nil {
 		return nil, err
 	}
+	// response.StatusCode
 	return response, nil
 }
 
