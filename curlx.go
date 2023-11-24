@@ -18,32 +18,7 @@ import (
  * Date: 2023年7月12日11:35:01
  */
 
-type dataType string
 
-const (
-	DataTypeForm       dataType = "form"
-	DataTypeJson       dataType = "json"
-	DataTypeXml        dataType = "xml"
-	DataTypeEncode     dataType = "encode"
-	DataTypeText       dataType = "text"
-	DataTypeUrlEncoded dataType = "urlencode"
-)
-
-type method string
-
-const (
-	MethodGet  method = "GET"
-	MethodPost method = "POST"
-)
-
-type CurlParams struct {
-	Url      string
-	Method   method // GET/POST
-	Params   interface{}
-	Headers  map[string]interface{}
-	Cookies  interface{}
-	DataType dataType // FORM,JSON,XML
-}
 
 var (
 	// 默认的transport

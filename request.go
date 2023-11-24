@@ -13,13 +13,7 @@ import (
 	"strings"
 )
 
-type FormParam struct {
-	Key    string `json:"key"`    // 字段名
-	Action string `json:"action"` // 动作(file/text)
-	Name   string `json:"name"`   // 文件名
-	Bytes  []byte `json:"bytes"`  // 文件内容
-	Value  string `json:"value"`  // 值
-}
+
 
 /**
  * 处理请求类型
@@ -76,10 +70,10 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 	}
 
 	if p.Params != nil {
-		if p.DataType == DataTypeJson {
+		if p.ContentType == ContentTypeJson {
 			// 判断是否存在
 			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = "application/json"
+				p.Headers["Content-Type"] = ContentTypeJson
 			}
 			strParam, ok := p.Params.(string)
 			if ok {
@@ -89,30 +83,35 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 			if err == nil {
 				return bytes.NewReader(b), nil
 			}
-		} else if p.DataType == DataTypeForm {
+		} else if p.ContentType == ContentTypeForm {
 			// 表单上传（可能有文件）
 			// 文件上传的
-			formParam, ok := p.Params.([]*FormParam)
-			if ok {
-				body := &bytes.Buffer{}
-				writer := multipart.NewWriter(body)
-				for _, v := range formParam {
-					if v.Action == "file" {
-						part, _ := writer.CreateFormFile(v.Key, v.Name)
-						io.Copy(part, strings.NewReader(v.Value))
-					} else {
-						_ = writer.WriteField(v.Key, v.Value)
-					}
-				}
-				writer.Close()
-				p.Headers["Content-Type"] = writer.FormDataContentType()
-				return body, nil
+			params := []FormParam{}
+			if value, ok := p.Params.([]FormParam); ok {
+				params = value
+			} else if value, ok := p.Params.(FormParam); ok {
+				params = append(params, value)
+			} else {
+				return nil, errors.New("表单上传的参数格式不正确")
 			}
-			return nil, errors.New("表单上传的参数格式不正确")
 
-		} else if p.DataType == DataTypeXml {
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			for _, v := range params {
+				if v.FieldType == FieldTypeFile {
+					part, _ := writer.CreateFormFile(v.FieldName, v.FileName)
+					io.Copy(part, bytes.NewBuffer(v.FileBytes))
+				} else {
+					_ = writer.WriteField(v.FieldName, v.FieldValue)
+				}
+			}
+			writer.Close()
+			p.Headers["Content-Type"] = writer.FormDataContentType()
+			return body, nil
+
+		} else if p.ContentType == ContentTypeXml {
 			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = "application/xml"
+				p.Headers["Content-Type"] = ContentTypeXml
 			}
 			var string_data string
 			if value, ok := p.Params.(string); ok {
@@ -126,9 +125,9 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 				string_data = string(by)
 			}
 			return strings.NewReader(string_data), nil
-		} else if p.DataType == DataTypeText {
+		} else if p.ContentType == ContentTypeText {
 			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = "text/plain"
+				p.Headers["Content-Type"] = ContentTypeText
 			}
 
 			var string_data string
@@ -140,7 +139,7 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 			}
 
 			return strings.NewReader(string_data), nil
-		} else if p.DataType == DataTypeUrlEncoded {
+		} else if p.ContentType == ContentTypeUrlEncoded {
 			if _, ok := p.Headers["Content-Type"]; !ok {
 				p.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 			}

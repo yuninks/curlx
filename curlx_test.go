@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCurlx(t *testing.T) {
+func TestGet(t *testing.T) {
 	p := CurlParams{}
 	p.Url = "http://www.baidu.com"
 	p.Method = "GET"
@@ -18,7 +18,7 @@ func TestCurlx(t *testing.T) {
 
 }
 
-func TestSendFile(t *testing.T) {
+func TestForm(t *testing.T) {
 
 	file, err := os.Open("./go.mod")
 	if err != nil {
@@ -28,12 +28,12 @@ func TestSendFile(t *testing.T) {
 
 	b, _ := io.ReadAll(file)
 
-	s := []*FormParam{
+	s := []FormParam{
 		{
-			Key:    "file",
-			Name:   file.Name(),
-			Action: "file",
-			Value:  string(b),
+			FieldName: "file",
+			FileName:  file.Name(),
+			FieldType: "file",
+			FileBytes: b,
 		},
 	}
 
@@ -44,7 +44,7 @@ func TestSendFile(t *testing.T) {
 		Headers: map[string]interface{}{
 			"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZW5hbnRfaWQiOjAsImNsaWVudF9pZCI6MCwidXNlcl9pZCI6MSwiZXhwIjoxNzAxMzk3NzkxfQ.9_uJ6y8I4JZTwgSenwHC_01nddLuI4zmgpyPhn5M6j8",
 		},
-		DataType: DataTypeForm,
+		ContentType: ContentTypeForm,
 	}
 	resp, code, err := NewCurlx().Send(context.Background(), p)
 	fmt.Println(resp, code, err)
