@@ -1,10 +1,10 @@
-module code.yun.ink/open/curlx
+module code.yun.ink/pkg/curlx
 
 go 1.19
 
 require (
-	github.com/tidwall/gjson v1.15.0
-	golang.org/x/net v0.14.0
+	github.com/tidwall/gjson v1.17.0
+	golang.org/x/net v0.18.0
 )
 
 require (

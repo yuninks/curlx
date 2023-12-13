@@ -13,8 +13,6 @@ import (
 	"strings"
 )
 
-
-
 /**
  * 处理请求类型
  */
@@ -181,7 +179,50 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 			}
 			return strings.NewReader(values.Encode()), nil
 		} else {
-			return nil, errors.New("不支持的数据类型")
+			// 如果是GET请求
+			if p.Method == MethodGet {
+				// 判断需要map[string]interface{}类型
+				paramValue, ok := p.Params.(map[string]interface{})
+				if !ok {
+					return strings.NewReader(""), errors.New("参数需map[string]interface{}")
+				}
+				// 拼接参数到URL
+				if strings.Contains(p.Url, "?") {
+					p.Url += "&"
+				} else {
+					p.Url += "?"
+				}
+				for k, v := range paramValue {
+					// 字符串
+					if v_string, ok := v.(string); ok {
+						p.Url += k + "=" + v_string + "&"
+					}
+					// 字符串切片
+					if vv, ok := v.([]string); ok {
+						for _, vvv := range vv {
+							p.Url += k + "[]=" + vvv + "&"
+						}
+					}
+					// int转string
+					if v_int, ok := v.(int); ok {
+						p.Url += k + "=" + strconv.Itoa(v_int) + "&"
+					}
+					// int64转string
+					if v_int64, ok := v.(int64); ok {
+						p.Url += k + "=" + strconv.FormatInt(v_int64, 10) + "&"
+					}
+					// float32转string
+					if v_float32, ok := v.(float32); ok {
+						p.Url += k + "=" + strconv.FormatFloat(float64(v_float32), 'f', -1, 32) + "&"
+					}
+					// float64转string
+					if v_float64, ok := v.(float64); ok {
+						p.Url += k + "=" + strconv.FormatFloat(v_float64, 'f', -1, 64) + "&"
+					}
+				}
+			} else {
+				return nil, errors.New("curlx 不支持的数据类型")
+			}
 		}
 
 	}
