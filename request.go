@@ -43,14 +43,15 @@ func (p *CurlParams) parseHeaders(r *http.Request) {
 			r.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0 Send By Golang")
 		}
 		for k, v := range p.Headers {
-			if vv, ok := v.(string); ok {
-				r.Header.Set(k, vv)
-				continue
-			}
-			if vv, ok := v.([]string); ok {
-				for _, vvv := range vv {
-					r.Header.Add(k, vvv)
+			switch value := v.(type) {
+			case string:
+				r.Header.Set(k, value)
+			case []string:
+				for _, vv := range value {
+					r.Header.Add(k, vv)
 				}
+			case ContentType:
+				r.Header.Set(k, string(value))
 			}
 		}
 	}
