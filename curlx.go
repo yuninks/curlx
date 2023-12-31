@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -17,8 +18,6 @@ import (
  * Author: Yun
  * Date: 2023年7月12日11:35:01
  */
-
-
 
 var (
 	// 默认的transport
@@ -36,7 +35,13 @@ var (
 		// 	conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeOut))) // 设置发送接收数据超时
 		// 	return conn, nil
 		// },
-		// ResponseHeaderTimeout: time.Second * time.Duration(defaultTimeOut), // 响应超时
+		// DialContext: (&net.Dialer{
+		// 	Timeout:   3 * time.Second, // 建立TCP链接的超时时间
+		// 	KeepAlive: 30 * time.Second, // TCP keepalive超时时间
+		// }).DialContext,
+		// TLSHandshakeTimeout: time.Second * 10, // TLS握手超时
+		// ResponseHeaderTimeout: time.Second * 10, // 接收响应头的超时时间
+		// ExpectContinueTimeout: time.Second * 10, // 发送请求头超时时间 100-continue状态码超时时间
 		DisableKeepAlives:   false,           // 短连接（默认是使用长连接，连接过多时会造成服务器拒绝服务问题）
 		MaxIdleConns:        0,               // 所有host的连接池最大连接数量，默认无穷大
 		MaxIdleConnsPerHost: 5,               // 每个host的连接池最大空闲连接收，默认2
@@ -49,13 +54,13 @@ var (
 
 type DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 
-type curlx struct {
+type Curlx struct {
 	transport     *http.Transport
 	timeOutSecond int
 }
 
-func NewCurlx() *curlx {
-	return &curlx{
+func NewCurlx() *Curlx {
+	return &Curlx{
 		transport:     &transport,
 		timeOutSecond: 180,
 	}
@@ -63,8 +68,9 @@ func NewCurlx() *curlx {
 
 /**
  * 使用Socks5代理
+ * @param address "socks5://127.0.0.1:1080"
  */
-func (c *curlx) WithSocks5(address string) error {
+func (c *Curlx) WithProxySocks5(address string) error {
 	baseDialer := &net.Dialer{
 		Timeout:   180 * time.Second,
 		KeepAlive: 180 * time.Second,
@@ -83,23 +89,41 @@ func (c *curlx) WithSocks5(address string) error {
 }
 
 /**
+ * 使用HTTP代理
+ * @param proxyAddr "https://proxyserver:port"
+ */
+func (c *Curlx) WithProxyHttp(proxyAddr string) error {
+	proxy, err := url.Parse(proxyAddr)
+	if err != nil {
+		return err
+	}
+	c.transport.Proxy = http.ProxyURL(proxy)
+	return nil
+}
+
+/**
  * 不校验HTTPS证书
  */
-func (c *curlx) WithInsecureSkipVerify() {
+func (c *Curlx) WithInsecureSkipVerify() {
 	c.transport.TLSClientConfig.InsecureSkipVerify = true
 }
 
 /**
  * 设置超时时间,单位秒
  */
-func (c *curlx) WithTimeout(timeout int) {
+func (c *Curlx) WithTimeout(timeout int) {
 	c.timeOutSecond = timeout
 }
+
+// 指定访问的IP
+// func(c *curlx) WithIp(ip string) {
+// 	c.transport.Dial
+// }
 
 /**
  * 简单请求
  */
-func (c *curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode int, err error) {
+func (c *Curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode int, err error) {
 	response, err := c.sendExec(ctx, p)
 	if err != nil {
 		return "", -1, err
@@ -139,9 +163,9 @@ func (c *curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode i
  * 执行发送
  * 注意：外部使用需要加这一句 defer response.Body.Close()
  */
-func (c *curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Response, err error) {
+func (c *Curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Response, err error) {
 	client := &http.Client{
-		Timeout:   time.Second * time.Duration(c.timeOutSecond), // 设置该条连接的超时
+		Timeout:   time.Second * time.Duration(c.timeOutSecond), // 整个请求的超时时间 设置该条连接的超时
 		Transport: c.transport,                                  //
 	}
 
@@ -196,7 +220,7 @@ func (c *curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Respons
 /**
  * 流式请求
  */
-func (c *curlx) SendChan(ctx context.Context, p *CurlParams) (<-chan string, error) {
+func (c *Curlx) SendChan(ctx context.Context, p *CurlParams) (<-chan string, error) {
 
 	data := make(chan string, 1000)
 
