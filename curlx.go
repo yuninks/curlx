@@ -19,9 +19,20 @@ import (
  * Date: 2023年7月12日11:35:01
  */
 
-var (
-	// 默认的transport
-	transport http.Transport = http.Transport{
+// type DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+
+type Curlx struct {
+	opts      clientOptions
+	transport *http.Transport
+}
+
+func NewCurlx(opts ...Option) *Curlx {
+	defaultOpts := defaultOptions()
+	for _, apply := range opts {
+		apply(&defaultOpts)
+	}
+
+	transport := &http.Transport{
 		// Dial: func(netw, addr string) (net.Conn, error) {
 		// 	// 这里指定域名访问的IP
 		// 	// if addr == "api.hk.blueoceanpay.com:443" {
@@ -48,22 +59,16 @@ var (
 		MaxConnsPerHost:     0,               // 每个host的最大连接数量
 		IdleConnTimeout:     time.Second * 2, // 空闲连接超时关闭的时间
 	}
-	// client  = &http.Client{}
 
-)
-
-type DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
-
-type Curlx struct {
-	transport     *http.Transport
-	timeOutSecond int
-}
-
-func NewCurlx() *Curlx {
-	return &Curlx{
-		transport:     &transport,
-		timeOutSecond: 180,
+	if defaultOpts.InsecureSkipVerify {
+		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
+
+	return &Curlx{
+		opts:      defaultOpts,
+		transport: transport,
+	}
+
 }
 
 /**
@@ -72,8 +77,8 @@ func NewCurlx() *Curlx {
  */
 func (c *Curlx) WithProxySocks5(address string) error {
 	baseDialer := &net.Dialer{
-		Timeout:   180 * time.Second,
-		KeepAlive: 180 * time.Second,
+		// Timeout:   180 * time.Second,
+		// KeepAlive: 180 * time.Second,
 	}
 	dialSocksProxy, err := proxy.SOCKS5("tcp", address, nil, baseDialer)
 	if err != nil {
@@ -101,30 +106,20 @@ func (c *Curlx) WithProxyHttp(proxyAddr string) error {
 	return nil
 }
 
-/**
- * 不校验HTTPS证书
- */
-func (c *Curlx) WithInsecureSkipVerify() {
-	c.transport.TLSClientConfig.InsecureSkipVerify = true
-}
-
-/**
- * 设置超时时间,单位秒
- */
-func (c *Curlx) WithTimeout(timeout int) {
-	c.timeOutSecond = timeout
-}
-
 // 指定访问的IP
-// func(c *curlx) WithIp(ip string) {
-// 	c.transport.Dial
-// }
+// 127.0.0.1:8080
+func (c *Curlx) WithAddress(ctx context.Context, addr string) {
+	// network tcp/udp
+	c.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return net.Dial(network, addr)
+	}
+}
 
 /**
  * 简单请求
  */
-func (c *Curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode int, err error) {
-	response, err := c.sendExec(ctx, p)
+func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int, err error) {
+	_, response, err := c.sendExec(ctx, p...)
 	if err != nil {
 		return "", -1, err
 	}
@@ -163,27 +158,32 @@ func (c *Curlx) Send(ctx context.Context, p *CurlParams) (res string, httpcode i
  * 执行发送
  * 注意：外部使用需要加这一句 defer response.Body.Close()
  */
-func (c *Curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Response, err error) {
+func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, resp *http.Response, err error) {
 	client := &http.Client{
-		Timeout:   time.Second * time.Duration(c.timeOutSecond), // 整个请求的超时时间 设置该条连接的超时
-		Transport: c.transport,                                  //
+		Timeout:   c.opts.TimeOut, // 整个请求的超时时间 设置该条连接的超时
+		Transport: c.transport,    //
+	}
+
+	p := defaultParams()
+	for _, param := range ps {
+		param(&p)
 	}
 
 	err = p.parseMethod()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 判断和处理url
 	err = p.parseUrl()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 处理参数
 	reqParams, err := p.parseParams()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 初始化句柄
@@ -193,7 +193,7 @@ func (c *Curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Respons
 		reqParams,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 这里指定要访问的HOST,到时候服务器获取主机是获取到这个
@@ -211,16 +211,16 @@ func (c *Curlx) sendExec(ctx context.Context, p *CurlParams) (resp *http.Respons
 	// 发起请求
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// response.StatusCode
-	return response, nil
+	return request, response, nil
 }
 
 /**
  * 流式请求
  */
-func (c *Curlx) SendChan(ctx context.Context, p *CurlParams) (<-chan string, error) {
+func (c *Curlx) SendChan(ctx context.Context, ps ...Param) (<-chan string, error) {
 
 	data := make(chan string, 1000)
 
@@ -230,7 +230,7 @@ func (c *Curlx) SendChan(ctx context.Context, p *CurlParams) (<-chan string, err
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 		defer cancel()
 
-		response, err := c.sendExec(ctx, p)
+		_, response, err := c.sendExec(ctx, ps...)
 		if err != nil {
 			return
 		}

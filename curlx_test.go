@@ -9,11 +9,10 @@ import (
 )
 
 func TestGet(t *testing.T) {
-	p := CurlParams{}
-	p.Url = "http://www.baidu.com"
-	p.Method = "GET"
-
-	resp, code, err := NewCurlx().Send(context.Background(), &p)
+	resp, code, err := NewCurlx().Send(context.Background(),
+		SetUrl("https://www.baidu.com"),
+		SetMethod(MethodGet),
+	)
 	t.Log(resp, code, err)
 
 }
@@ -37,7 +36,7 @@ func TestForm(t *testing.T) {
 		},
 	}
 
-	p := &CurlParams{
+	p := ClientParams{
 		Url:    "http://tech-dev.sealmoo.com/api/material/upload",
 		Method: "POST",
 		Params: s,
@@ -46,6 +45,6 @@ func TestForm(t *testing.T) {
 		},
 		ContentType: ContentTypeForm,
 	}
-	resp, code, err := NewCurlx().Send(context.Background(), p)
+	resp, code, err := NewCurlx().Send(context.Background(), SetAll(p))
 	fmt.Println(resp, code, err)
 }

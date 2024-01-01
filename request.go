@@ -16,7 +16,7 @@ import (
 /**
  * 处理请求类型
  */
-func (p *CurlParams) parseMethod() error {
+func (p *ClientParams) parseMethod() error {
 	if p.Method == "" {
 		return errors.New("请求类型不能为空")
 	}
@@ -26,7 +26,7 @@ func (p *CurlParams) parseMethod() error {
 /**
  * 处理URL
  */
-func (p *CurlParams) parseUrl() error {
+func (p *ClientParams) parseUrl() error {
 	_, err := url.Parse(p.Url)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func (p *CurlParams) parseUrl() error {
 /**
  * 处理请求头Header
  */
-func (p *CurlParams) parseHeaders(r *http.Request) {
+func (p *ClientParams) parseHeaders(r *http.Request) {
 	if p.Headers != nil {
 		if r.Header.Get("User-Agent") == "" {
 			r.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0 Send By Golang")
@@ -60,7 +60,7 @@ func (p *CurlParams) parseHeaders(r *http.Request) {
 /**
  * 处理请求参数
  */
-func (p *CurlParams) parseParams() (str io.Reader, err error) {
+func (p *ClientParams) parseParams() (str io.Reader, err error) {
 	err = nil
 
 	// 初始化(如未初始化)
@@ -233,7 +233,7 @@ func (p *CurlParams) parseParams() (str io.Reader, err error) {
 /**
  * 处理Cookie
  */
-func (p *CurlParams) parseCookies(r *http.Request) {
+func (p *ClientParams) parseCookies(r *http.Request) {
 	switch p.Cookies.(type) {
 	case string:
 		cookies := p.Cookies.(string)
