@@ -3,7 +3,7 @@ package curlx
 type ClientParams struct {
 	Url         string
 	Method      Method // GET/POST
-	Params      interface{}
+	Body        interface{}
 	Headers     map[string]interface{}
 	Cookies     interface{}
 	ContentType ContentType // FORM,JSON,XML
@@ -15,11 +15,11 @@ func defaultParams() ClientParams {
 
 type Param func(*ClientParams)
 
-func SetAll(cp ClientParams) Param {
+func SetParamsAll(cp ClientParams) Param {
 	return func(param *ClientParams) {
 		param.Url = cp.Url
 		param.Method = cp.Method
-		param.Params = cp.Params
+		param.Body = cp.Body
 		param.Headers = cp.Headers
 		param.Cookies = cp.Cookies
 		param.ContentType = cp.ContentType
@@ -29,7 +29,7 @@ func SetAll(cp ClientParams) Param {
 /**
  * 设置URL
  */
-func SetUrl(url string) Param {
+func SetParamsUrl(url string) Param {
 	return func(param *ClientParams) {
 		param.Url = url
 	}
@@ -38,7 +38,7 @@ func SetUrl(url string) Param {
 /**
  * 设置方法
  */
-func SetMethod(m Method) Param {
+func SetParamsMethod(m Method) Param {
 	return func(param *ClientParams) {
 		param.Method = m
 	}
@@ -47,9 +47,9 @@ func SetMethod(m Method) Param {
 /**
  * 设置参数
  */
-func SetParams(p interface{}) Param {
+func SetParamsBody(p interface{}) Param {
 	return func(param *ClientParams) {
-		param.Params = p
+		param.Body = p
 	}
 }
 
@@ -58,13 +58,13 @@ func SetParams(p interface{}) Param {
  */
 func SetParamsFormText(fieldName, fieldValue string) Param {
 	return func(param *ClientParams) {
-		fp := param.Params.([]FormParam)
+		fp := param.Body.([]FormParam)
 		fp = append(fp, FormParam{
 			FieldName:  fieldName,
 			FieldValue: fieldValue,
 			FieldType:  FieldTypeText,
 		})
-		param.Params = fp
+		param.Body = fp
 	}
 }
 
@@ -73,21 +73,21 @@ func SetParamsFormText(fieldName, fieldValue string) Param {
  */
 func SetParamsFormFile(fieldName, fileName string, fileBytes []byte) Param {
 	return func(param *ClientParams) {
-		fp := param.Params.([]FormParam)
+		fp := param.Body.([]FormParam)
 		fp = append(fp, FormParam{
 			FieldName: fieldName,
 			FieldType: FieldTypeFile,
 			FileName:  fileName,
 			FileBytes: fileBytes,
 		})
-		param.Params = fp
+		param.Body = fp
 	}
 }
 
 /**
  * 设置请求头
  */
-func SetHeaders(h map[string]interface{}) Param {
+func SetParamsHeaders(h map[string]interface{}) Param {
 	return func(param *ClientParams) {
 		param.Headers = h
 	}
@@ -96,7 +96,7 @@ func SetHeaders(h map[string]interface{}) Param {
 /**
  * 设置cookies
  */
-func SetCookies(c interface{}) Param {
+func SetParamsCookies(c interface{}) Param {
 	return func(param *ClientParams) {
 		param.Cookies = c
 	}
@@ -105,7 +105,7 @@ func SetCookies(c interface{}) Param {
 /**
  * 设置请求方法
  */
-func SetContentType(t ContentType) Param {
+func SetParamsContentType(t ContentType) Param {
 	return func(param *ClientParams) {
 		param.ContentType = t
 	}

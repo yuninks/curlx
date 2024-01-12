@@ -68,17 +68,17 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 		p.Headers = make(map[string]interface{})
 	}
 
-	if p.Params != nil {
+	if p.Body != nil {
 		if p.ContentType == ContentTypeJson {
 			// 判断是否存在
 			if _, ok := p.Headers["Content-Type"]; !ok {
 				p.Headers["Content-Type"] = ContentTypeJson
 			}
-			strParam, ok := p.Params.(string)
+			strParam, ok := p.Body.(string)
 			if ok {
 				return bytes.NewReader([]byte(strParam)), nil
 			}
-			b, err := json.Marshal(p.Params)
+			b, err := json.Marshal(p.Body)
 			if err == nil {
 				return bytes.NewReader(b), nil
 			}
@@ -86,9 +86,9 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 			// 表单上传（可能有文件）
 			// 文件上传的
 			params := []FormParam{}
-			if value, ok := p.Params.([]FormParam); ok {
+			if value, ok := p.Body.([]FormParam); ok {
 				params = value
-			} else if value, ok := p.Params.(FormParam); ok {
+			} else if value, ok := p.Body.(FormParam); ok {
 				params = append(params, value)
 			} else {
 				return nil, errors.New("表单上传的参数格式不正确")
@@ -113,11 +113,11 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 				p.Headers["Content-Type"] = ContentTypeXml
 			}
 			var string_data string
-			if value, ok := p.Params.(string); ok {
+			if value, ok := p.Body.(string); ok {
 				string_data = string(value)
 			} else {
 				var by []byte
-				by, err = xml.Marshal(p.Params)
+				by, err = xml.Marshal(p.Body)
 				if err != nil {
 					return
 				}
@@ -130,7 +130,7 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 			}
 
 			var string_data string
-			if value, ok := p.Params.(string); ok {
+			if value, ok := p.Body.(string); ok {
 				string_data = string(value)
 			} else {
 				err = errors.New("TEXT类型的参数仅支持字符串")
@@ -144,7 +144,7 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 			}
 
 			// 判断需要map[string]interface{}类型
-			paramValue, ok := p.Params.(map[string]interface{})
+			paramValue, ok := p.Body.(map[string]interface{})
 			if !ok {
 				return strings.NewReader(""), errors.New("参数需map[string]interface{}")
 			}
@@ -183,7 +183,7 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 			// 如果是GET请求
 			if p.Method == MethodGet {
 				// 判断需要map[string]interface{}类型
-				paramValue, ok := p.Params.(map[string]interface{})
+				paramValue, ok := p.Body.(map[string]interface{})
 				if !ok {
 					return strings.NewReader(""), errors.New("参数需map[string]interface{}")
 				}

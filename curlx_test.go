@@ -10,8 +10,8 @@ import (
 
 func TestGet(t *testing.T) {
 	resp, code, err := NewCurlx().Send(context.Background(),
-		SetUrl("https://www.baidu.com"),
-		SetMethod(MethodGet),
+		SetParamsUrl("https://www.baidu.com"),
+		SetParamsMethod(MethodGet),
 	)
 	t.Log(resp, code, err)
 
@@ -39,12 +39,12 @@ func TestForm(t *testing.T) {
 	p := ClientParams{
 		Url:    "http://tech-dev.sealmoo.com/api/material/upload",
 		Method: "POST",
-		Params: s,
+		Body:   s,
 		Headers: map[string]interface{}{
 			"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZW5hbnRfaWQiOjAsImNsaWVudF9pZCI6MCwidXNlcl9pZCI6MSwiZXhwIjoxNzAxMzk3NzkxfQ.9_uJ6y8I4JZTwgSenwHC_01nddLuI4zmgpyPhn5M6j8",
 		},
 		ContentType: ContentTypeForm,
 	}
-	resp, code, err := NewCurlx().Send(context.Background(), SetAll(p))
+	resp, code, err := NewCurlx().Send(context.Background(), SetParamsAll(p))
 	fmt.Println(resp, code, err)
 }

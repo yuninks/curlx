@@ -18,7 +18,7 @@ type Option func(*clientOptions)
 /**
  * 设置超时时间
  */
-func SetTimeOut(t time.Duration) Option {
+func SetOptionTimeOut(t time.Duration) Option {
 	return func(options *clientOptions) {
 		options.TimeOut = t
 	}
@@ -27,7 +27,7 @@ func SetTimeOut(t time.Duration) Option {
 /**
  * 不校验HTTPS证书
  */
-func SetTLSInsecureSkipVerify() Option {
+func SetOptionTLSInsecureSkipVerify() Option {
 	return func(options *clientOptions) {
 		options.InsecureSkipVerify = true
 	}
