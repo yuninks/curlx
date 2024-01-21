@@ -168,6 +168,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	for _, param := range ps {
 		param(&p)
 	}
+	c.opts.Logger.Infof(ctx,"curlx.sendExec params:%+v", p)
 
 	err = p.parseMethod()
 	if err != nil {
@@ -177,12 +178,14 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	// 判断和处理url
 	err = p.parseUrl()
 	if err != nil {
+		c.opts.Logger.Errorf(ctx,"curlx.sendExec parseUrl err:%v", err)
 		return nil, nil, err
 	}
 
 	// 处理参数
 	reqParams, err := p.parseParams()
 	if err != nil {
+		c.opts.Logger.Errorf(ctx,"curlx.sendExec parseParams err:%v", err)
 		return nil, nil, err
 	}
 
@@ -193,6 +196,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 		reqParams,
 	)
 	if err != nil {
+		c.opts.Logger.Errorf(ctx,"curlx.sendExec NewRequest err:%v", err)
 		return nil, nil, err
 	}
 
@@ -211,6 +215,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	// 发起请求
 	response, err := client.Do(request)
 	if err != nil {
+		c.opts.Logger.Errorf(ctx,"curlx.sendExec client.Do err:%v", err)
 		return nil, nil, err
 	}
 	// response.StatusCode
