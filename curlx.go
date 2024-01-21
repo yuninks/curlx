@@ -151,6 +151,7 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int,
 	default:
 		body, _ = io.ReadAll(response.Body)
 	}
+	c.opts.Logger.Infof(ctx,"curlx.Send body:%s", string(body))
 	return string(body), status, nil
 }
 
