@@ -119,7 +119,7 @@ func (c *Curlx) WithAddress(ctx context.Context, addr string) {
  * 简单请求
  */
 func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int, err error) {
-	_, response, err := c.sendExec(ctx, p...)
+	_, response, err := c.SendExec(ctx, p...)
 	if err != nil {
 		return "", -1, err
 	}
@@ -151,7 +151,7 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int,
 	default:
 		body, _ = io.ReadAll(response.Body)
 	}
-	c.opts.Logger.Infof(ctx,"curlx.Send body:%s", string(body))
+	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
 	return string(body), status, nil
 }
 
@@ -159,7 +159,7 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int,
  * 执行发送
  * 注意：外部使用需要加这一句 defer response.Body.Close()
  */
-func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, resp *http.Response, err error) {
+func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, resp *http.Response, err error) {
 	client := &http.Client{
 		Timeout:   c.opts.TimeOut, // 整个请求的超时时间 设置该条连接的超时
 		Transport: c.transport,    //
@@ -169,7 +169,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	for _, param := range ps {
 		param(&p)
 	}
-	c.opts.Logger.Infof(ctx,"curlx.sendExec params:%+v", p)
+	c.opts.Logger.Infof(ctx, "curlx.sendExec params:%+v", p)
 
 	err = p.parseMethod()
 	if err != nil {
@@ -179,14 +179,14 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	// 判断和处理url
 	err = p.parseUrl()
 	if err != nil {
-		c.opts.Logger.Errorf(ctx,"curlx.sendExec parseUrl err:%v", err)
+		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseUrl err:%v", err)
 		return nil, nil, err
 	}
 
 	// 处理参数
 	reqParams, err := p.parseParams()
 	if err != nil {
-		c.opts.Logger.Errorf(ctx,"curlx.sendExec parseParams err:%v", err)
+		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseParams err:%v", err)
 		return nil, nil, err
 	}
 
@@ -197,7 +197,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 		reqParams,
 	)
 	if err != nil {
-		c.opts.Logger.Errorf(ctx,"curlx.sendExec NewRequest err:%v", err)
+		c.opts.Logger.Errorf(ctx, "curlx.sendExec NewRequest err:%v", err)
 		return nil, nil, err
 	}
 
@@ -216,7 +216,7 @@ func (c *Curlx) sendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	// 发起请求
 	response, err := client.Do(request)
 	if err != nil {
-		c.opts.Logger.Errorf(ctx,"curlx.sendExec client.Do err:%v", err)
+		c.opts.Logger.Errorf(ctx, "curlx.sendExec client.Do err:%v", err)
 		return nil, nil, err
 	}
 	// response.StatusCode
@@ -236,7 +236,7 @@ func (c *Curlx) SendChan(ctx context.Context, ps ...Param) (<-chan string, error
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 		defer cancel()
 
-		_, response, err := c.sendExec(ctx, ps...)
+		_, response, err := c.SendExec(ctx, ps...)
 		if err != nil {
 			return
 		}
