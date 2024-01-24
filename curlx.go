@@ -118,10 +118,10 @@ func (c *Curlx) WithAddress(ctx context.Context, addr string) {
 /**
  * 简单请求
  */
-func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int, err error) {
+func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int, err error) {
 	_, response, err := c.SendExec(ctx, p...)
 	if err != nil {
-		return "", -1, err
+		return nil, -1, err
 	}
 
 	defer response.Body.Close() // 处理完关闭
@@ -135,7 +135,7 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int,
 	case "gzip":
 		reader, err := gzip.NewReader(response.Body)
 		if err != nil {
-			return "", status, err
+			return nil, status, err
 		}
 		for {
 			buf := make([]byte, 1024)
@@ -152,7 +152,7 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res string, httpcode int,
 		body, _ = io.ReadAll(response.Body)
 	}
 	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
-	return string(body), status, nil
+	return body, status, nil
 }
 
 /**
@@ -226,7 +226,7 @@ func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 /**
  * 流式请求
  */
-func (c *Curlx) SendChan(ctx context.Context, ps ...Param) (<-chan string, error) {
+func (c *Curlx) SendStream(ctx context.Context, ps ...Param) (<-chan string, error) {
 
 	data := make(chan string, 1000)
 
