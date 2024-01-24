@@ -89,7 +89,18 @@ func SetParamsFormFile(fieldName, fileName string, fileBytes []byte) Param {
  */
 func SetParamsHeaders(h map[string]interface{}) Param {
 	return func(param *ClientParams) {
-		param.Headers = h
+		for key, _ := range h {
+			param.Headers[key] = h[key]
+		}
+	}
+}
+
+/**
+ * 设置UserAgent
+ */
+func SetUserAgent(userAgent UserAgent) Param {
+	return func(param *ClientParams) {
+		param.Headers["User-Agent"] = string(userAgent)
 	}
 }
 

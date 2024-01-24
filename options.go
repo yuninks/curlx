@@ -14,8 +14,8 @@ type clientOptions struct {
 
 func defaultOptions() clientOptions {
 	return clientOptions{
-		TimeOut: time.Second * 120, // 默认超时120
-		Logger:  defaultLogger{},
+		TimeOut:   time.Second * 120, // 默认超时120
+		Logger:    defaultLogger{},
 	}
 }
 

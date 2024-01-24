@@ -40,7 +40,7 @@ func (p *ClientParams) parseUrl() error {
 func (p *ClientParams) parseHeaders(r *http.Request) {
 	if p.Headers != nil {
 		if r.Header.Get("User-Agent") == "" {
-			r.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:87.0) Gecko/20100101 Firefox/87.0 Send By Golang")
+			r.Header.Add("User-Agent", string(UserAgentChrome))
 		}
 		for k, v := range p.Headers {
 			switch value := v.(type) {
@@ -51,6 +51,8 @@ func (p *ClientParams) parseHeaders(r *http.Request) {
 					r.Header.Add(k, vv)
 				}
 			case ContentType:
+				r.Header.Set(k, string(value))
+			case UserAgent:
 				r.Header.Set(k, string(value))
 			}
 		}
