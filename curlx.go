@@ -155,6 +155,43 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int,
 	return body, status, nil
 }
 
+func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
+	r := Response{}
+	req, resp, err := c.SendExec(ctx, ps...)
+	r.req = req
+	r.resp = resp
+
+	if err != nil {
+		r.err = err
+		return r
+	}
+	var body []byte
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		reader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			r.err = err
+			return r
+		}
+		for {
+			buf := make([]byte, 1024)
+			n, err := reader.Read(buf)
+			if err != nil && err != io.EOF {
+				panic(err)
+			}
+			if n == 0 {
+				break
+			}
+			body = append(body, buf...)
+		}
+	default:
+		body, _ = io.ReadAll(resp.Body)
+	}
+	r.body = body
+	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
+	return r
+}
+
 /**
  * 执行发送
  * 注意：外部使用需要加这一句 defer response.Body.Close()
