@@ -10,7 +10,9 @@ type ClientParams struct {
 }
 
 func defaultParams() ClientParams {
-	return ClientParams{}
+	return ClientParams{
+		Headers: map[string]interface{}{}, // 初始化map
+	}
 }
 
 type Param func(*ClientParams)
