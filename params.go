@@ -107,6 +107,15 @@ func SetUserAgent(userAgent UserAgent) Param {
 }
 
 /**
+ * 设置Referer
+ */
+func SetReferer(referer string) Param {
+	return func(param *ClientParams) {
+		param.Headers["Referer"] = referer
+	}
+}
+
+/**
  * 设置cookies
  */
 func SetParamsCookies(c interface{}) Param {

@@ -182,7 +182,9 @@ func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
 			if n == 0 {
 				break
 			}
-			body = append(body, buf...)
+			// 读取n个字节
+			body = append(body, buf[:n]...)
+			// body = append(body, buf...)
 		}
 	default:
 		body, _ = io.ReadAll(resp.Body)
