@@ -131,26 +131,44 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int,
 	status := response.StatusCode // 获取状态码，正常是200
 
 	var body []byte
-	switch response.Header.Get("Content-Encoding") {
-	case "gzip":
+	// switch response.Header.Get("Content-Encoding") {
+	// case "gzip":
+	// 	reader, err := gzip.NewReader(response.Body)
+	// 	if err != nil {
+	// 		return nil, status, err
+	// 	}
+	// 	for {
+	// 		buf := make([]byte, 1024)
+	// 		n, err := reader.Read(buf)
+	// 		if err != nil && err != io.EOF {
+	// 			panic(err)
+	// 		}
+	// 		if n == 0 {
+	// 			break
+	// 		}
+	// 		body = append(body, buf...)
+	// 	}
+	// default:
+	// 	body, _ = io.ReadAll(response.Body)
+	// }
+
+	if response.Header.Get("Content-Encoding") == "gzip" {
 		reader, err := gzip.NewReader(response.Body)
 		if err != nil {
-			return nil, status, err
+			return nil, response.StatusCode, err
 		}
-		for {
-			buf := make([]byte, 1024)
-			n, err := reader.Read(buf)
-			if err != nil && err != io.EOF {
-				panic(err)
-			}
-			if n == 0 {
-				break
-			}
-			body = append(body, buf...)
+		body, err = io.ReadAll(reader)
+		if err != nil {
+			return nil, response.StatusCode, err
 		}
-	default:
-		body, _ = io.ReadAll(response.Body)
+		defer reader.Close()
+	} else {
+		body, err = io.ReadAll(response.Body)
+		if err != nil {
+			return nil, response.StatusCode, err
+		}
 	}
+
 	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
 	return body, status, nil
 }
