@@ -166,29 +166,29 @@ func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
 		return r
 	}
 	var body []byte
-	switch resp.Header.Get("Content-Encoding") {
-	case "gzip":
-		reader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			r.err = err
-			return r
-		}
-		for {
-			buf := make([]byte, 1024)
-			n, err := reader.Read(buf)
-			if err != nil && err != io.EOF {
-				panic(err)
-			}
-			if n == 0 {
-				break
-			}
-			// 读取n个字节
-			body = append(body, buf[:n]...)
-			// body = append(body, buf...)
-		}
-	default:
-		body, _ = io.ReadAll(resp.Body)
-	}
+	// switch resp.Header.Get("Content-Encoding") {
+	// case "gzip":
+	// 	reader, err := gzip.NewReader(resp.Body)
+	// 	if err != nil {
+	// 		r.err = err
+	// 		return r
+	// 	}
+	// 	for {
+	// 		buf := make([]byte, 1024)
+	// 		n, err := reader.Read(buf)
+	// 		if err != nil && err != io.EOF {
+	// 			panic(err)
+	// 		}
+	// 		if n == 0 {
+	// 			break
+	// 		}
+	// 		// 读取n个字节
+	// 		body = append(body, buf[:n]...)
+	// 		// body = append(body, buf...)
+	// 	}
+	// default:
+	body, _ = io.ReadAll(resp.Body)
+	// }
 	r.body = body
 	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
 	return r
