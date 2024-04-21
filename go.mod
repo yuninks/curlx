@@ -1,6 +1,6 @@
-module code.yun.ink/pkg/curlx
+module github.com/yuninks/curlx
 
-go 1.19
+go 1.20
 
 require (
 	github.com/tidwall/gjson v1.17.0
