@@ -79,6 +79,10 @@ func (c *Curlx) WithProxySocks5(address string) error {
 	baseDialer := &net.Dialer{
 		// Timeout:   180 * time.Second,
 		// KeepAlive: 180 * time.Second,
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial:     c.transport.DialContext,
+		},
 	}
 	dialSocksProxy, err := proxy.SOCKS5("tcp", address, nil, baseDialer)
 	if err != nil {
@@ -94,7 +98,7 @@ func (c *Curlx) WithProxySocks5(address string) error {
 }
 
 /**
- * 使用HTTP代理
+ * 使用HTTP/HTTPS代理
  * @param proxyAddr "https://proxyserver:port"
  */
 func (c *Curlx) WithProxyHttp(proxyAddr string) error {
