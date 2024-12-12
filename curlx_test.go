@@ -19,7 +19,6 @@ func TestGet(t *testing.T) {
 
 func TestForm(t *testing.T) {
 
-	
 	file, err := os.Open("./go.mod")
 	if err != nil {
 		panic(err)
@@ -48,4 +47,11 @@ func TestForm(t *testing.T) {
 	}
 	resp, code, err := NewCurlx().Send(context.Background(), SetParamsAll(p))
 	fmt.Println(resp, code, err)
+}
+
+func TestProxy(t *testing.T) {
+	c := NewCurlx()
+	c.WithProxySocks5("127.0.0.1:1080")
+	res, code, err := c.Send(context.Background(), SetParamsUrl("https://www.google.com"),SetParamsMethod(MethodGet))
+	t.Log(string(res), code, err)
 }
