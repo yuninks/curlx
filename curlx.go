@@ -315,7 +315,7 @@ func (c *Curlx) SendStream(ctx context.Context, ps ...Param) (<-chan string, err
 	go func() {
 		defer close(data)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
+		ctx, cancel := context.WithTimeout(context.Background(), c.opts.TimeOut)
 		defer cancel()
 
 		_, response, err := c.SendExec(ctx, ps...)
