@@ -98,6 +98,15 @@ func SetParamsHeaders(h map[string]interface{}) Param {
 }
 
 /**
+ * 设置请求头
+ */
+func SetParamsHeader(key, value string) Param {
+	return func(param *ClientParams) {
+		param.Headers[key] = value
+	}
+}
+
+/**
  * 设置UserAgent
  */
 func SetUserAgent(userAgent UserAgent) Param {
