@@ -1,17 +1,22 @@
 package curlx
 
+import (
+	"encoding/json"
+	"net/http"
+)
+
 type ClientParams struct {
 	Url         string
-	Method      Method // GET/POST
-	Body        interface{}
-	Headers     map[string]interface{}
-	Cookies     interface{}
+	Method      Method // GET/POST/PUT/DELETE
+	Body        []byte
+	Headers     http.Header
+	Cookies     []http.Cookie
 	ContentType ContentType // FORM,JSON,XML
 }
 
 func defaultParams() ClientParams {
 	return ClientParams{
-		Headers: map[string]interface{}{}, // 初始化map
+		Headers: http.Header{},
 	}
 }
 
@@ -49,9 +54,22 @@ func SetParamsMethod(m Method) Param {
 /**
  * 设置参数
  */
-func SetParamsBody(p interface{}) Param {
+func SetParamsBody(by []byte) Param {
 	return func(param *ClientParams) {
-		param.Body = p
+		param.Body = by
+	}
+}
+
+func SetParamsBodyAny(v interface{}) Param {
+	return func(param *ClientParams) {
+		switch value := v.(type) {
+		case []byte:
+			param.Body = value
+		case string:
+			param.Body = []byte(value)
+		default:
+			param.Body, _ = json.Marshal(value)
+		}
 	}
 }
 
@@ -60,12 +78,18 @@ func SetParamsBody(p interface{}) Param {
  */
 func SetParamsFormText(fieldName, fieldValue string) Param {
 	return func(param *ClientParams) {
-		fp := param.Body.([]FormParam)
-		fp = append(fp, FormParam{
+		m := []FormParam{}
+		if param.Body != nil {
+			json.Unmarshal(param.Body, &m)
+		}
+		m = append(m, FormParam{
 			FieldName:  fieldName,
 			FieldValue: fieldValue,
 			FieldType:  FieldTypeText,
 		})
+
+		fp, _ := json.Marshal(m)
+
 		param.Body = fp
 	}
 }
@@ -75,24 +99,36 @@ func SetParamsFormText(fieldName, fieldValue string) Param {
  */
 func SetParamsFormFile(fieldName, fileName string, fileBytes []byte) Param {
 	return func(param *ClientParams) {
-		fp := param.Body.([]FormParam)
+
+		fp := []FormParam{}
+
+		if param.Body != nil {
+			json.Unmarshal(param.Body, &fp)
+		}
+
 		fp = append(fp, FormParam{
 			FieldName: fieldName,
 			FieldType: FieldTypeFile,
 			FileName:  fileName,
 			FileBytes: fileBytes,
 		})
-		param.Body = fp
+
+		fpb, _ := json.Marshal(fp)
+
+		param.Body = fpb
 	}
 }
 
 /**
  * 设置请求头
  */
-func SetParamsHeaders(h map[string]interface{}) Param {
+func SetParamsHeaders(h map[string]string) Param {
 	return func(param *ClientParams) {
-		for key, _ := range h {
-			param.Headers[key] = h[key]
+		if param.Headers == nil {
+			param.Headers = http.Header{}
+		}
+		for k, v := range h {
+			param.Headers.Set(k, v)
 		}
 	}
 }
@@ -102,7 +138,10 @@ func SetParamsHeaders(h map[string]interface{}) Param {
  */
 func SetParamsHeader(key, value string) Param {
 	return func(param *ClientParams) {
-		param.Headers[key] = value
+		if param.Headers == nil {
+			param.Headers = http.Header{}
+		}
+		param.Headers.Add(key, value)
 	}
 }
 
@@ -111,7 +150,25 @@ func SetParamsHeader(key, value string) Param {
  */
 func SetUserAgent(userAgent UserAgent) Param {
 	return func(param *ClientParams) {
-		param.Headers["User-Agent"] = string(userAgent)
+		if param.Headers == nil {
+			param.Headers = http.Header{}
+		}
+		param.Headers.Set("User-Agent", string(userAgent))
+	}
+}
+
+func SetCookie(name, value string) Param {
+	return func(param *ClientParams) {
+		param.Cookies = append(param.Cookies, http.Cookie{
+			Name:  name,
+			Value: value,
+		})
+	}
+}
+
+func SetCookies(cookies []http.Cookie) Param {
+	return func(param *ClientParams) {
+		param.Cookies = append(param.Cookies, cookies...)
 	}
 }
 
@@ -120,14 +177,17 @@ func SetUserAgent(userAgent UserAgent) Param {
  */
 func SetReferer(referer string) Param {
 	return func(param *ClientParams) {
-		param.Headers["Referer"] = referer
+		if param.Headers == nil {
+			param.Headers = http.Header{}
+		}
+		param.Headers.Set("Referer", referer)
 	}
 }
 
 /**
  * 设置cookies
  */
-func SetParamsCookies(c interface{}) Param {
+func SetParamsCookies(c []http.Cookie) Param {
 	return func(param *ClientParams) {
 		param.Cookies = c
 	}

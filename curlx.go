@@ -135,26 +135,6 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int,
 	status := response.StatusCode // 获取状态码，正常是200
 
 	var body []byte
-	// switch response.Header.Get("Content-Encoding") {
-	// case "gzip":
-	// 	reader, err := gzip.NewReader(response.Body)
-	// 	if err != nil {
-	// 		return nil, status, err
-	// 	}
-	// 	for {
-	// 		buf := make([]byte, 1024)
-	// 		n, err := reader.Read(buf)
-	// 		if err != nil && err != io.EOF {
-	// 			panic(err)
-	// 		}
-	// 		if n == 0 {
-	// 			break
-	// 		}
-	// 		body = append(body, buf...)
-	// 	}
-	// default:
-	// 	body, _ = io.ReadAll(response.Body)
-	// }
 
 	if response.Header.Get("Content-Encoding") == "gzip" {
 		reader, err := gzip.NewReader(response.Body)
@@ -177,6 +157,24 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int,
 	return body, status, nil
 }
 
+// PostJson 发送JSON数据
+func (l *Curlx) PostJson(ctx context.Context, url string, jsonStr string) ([]byte, int, error) {
+	return l.Send(ctx,
+		SetParamsUrl(url),
+		SetParamsBody([]byte(jsonStr)),
+		SetParamsContentType(ContentTypeJson),
+		SetParamsMethod(MethodPost),
+	)
+}
+
+// Get 简单GET请求
+func (l *Curlx) Get(ctx context.Context, url string) ([]byte, int, error) {
+	return l.Send(ctx,
+		SetParamsUrl(url),
+		SetParamsMethod(MethodGet),
+	)
+}
+
 func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
 	r := Response{}
 	req, resp, err := c.SendExec(ctx, ps...)
@@ -188,29 +186,6 @@ func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
 		return r
 	}
 	var body []byte
-	// switch resp.Header.Get("Content-Encoding") {
-	// case "gzip":
-	// 	reader, err := gzip.NewReader(resp.Body)
-	// 	if err != nil {
-	// 		r.err = err
-	// 		return r
-	// 	}
-	// 	for {
-	// 		buf := make([]byte, 1024)
-	// 		n, err := reader.Read(buf)
-	// 		if err != nil && err != io.EOF {
-	// 			panic(err)
-	// 		}
-	// 		if n == 0 {
-	// 			break
-	// 		}
-	// 		// 读取n个字节
-	// 		body = append(body, buf[:n]...)
-	// 		// body = append(body, buf...)
-	// 	}
-	// default:
-	// body, _ = io.ReadAll(resp.Body)
-	// }
 
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		reader, err := gzip.NewReader(resp.Body)

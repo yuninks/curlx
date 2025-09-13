@@ -3,14 +3,14 @@ package curlx
 import (
 	"bytes"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
+
+	"code.yun.ink/pkg/convx"
 )
 
 /**
@@ -38,25 +38,13 @@ func (p *ClientParams) parseUrl() error {
  * 处理请求头Header
  */
 func (p *ClientParams) parseHeaders(r *http.Request) {
-	if p.Headers != nil {
-		if r.Header.Get("User-Agent") == "" {
-			r.Header.Add("User-Agent", string(UserAgentChrome))
-		}
-		for k, v := range p.Headers {
-			switch value := v.(type) {
-			case string:
-				r.Header.Set(k, value)
-			case []string:
-				for _, vv := range value {
-					r.Header.Add(k, vv)
-				}
-			case ContentType:
-				r.Header.Set(k, string(value))
-			case UserAgent:
-				r.Header.Set(k, string(value))
-			}
-		}
+
+	if p.Headers.Get("User-Agent") == "" {
+		p.Headers.Add("User-Agent", string(UserAgentChrome))
 	}
+
+	r.Header = p.Headers
+
 }
 
 /**
@@ -67,165 +55,83 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 
 	// 初始化(如未初始化)
 	if p.Headers == nil {
-		p.Headers = make(map[string]interface{})
+		p.Headers = http.Header{}
 	}
 
-	if p.Body != nil {
-		if p.ContentType == ContentTypeJson {
-			// 判断是否存在
-			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = ContentTypeJson
-			}
-			strParam, ok := p.Body.(string)
-			if ok {
-				return bytes.NewReader([]byte(strParam)), nil
-			}
-			b, err := json.Marshal(p.Body)
-			if err == nil {
-				return bytes.NewReader(b), nil
-			}
-		} else if p.ContentType == ContentTypeForm {
-			// 表单上传（可能有文件）
-			// 文件上传的
-			params := []FormParam{}
-			if value, ok := p.Body.([]FormParam); ok {
-				params = value
-			} else if value, ok := p.Body.(FormParam); ok {
-				params = append(params, value)
+	// 添加Content-Type
+	if _, ok := p.Headers["Content-Type"]; !ok {
+		p.Headers.Set("Content-Type", string(p.ContentType))
+	}
+
+	if len(p.Body) == 0 {
+		return nil, nil
+	}
+
+	switch p.ContentType {
+	case ContentTypeJson:
+		// JSON
+		return bytes.NewReader(p.Body), nil
+	case ContentTypeForm:
+		// 表单
+		params := []FormParam{}
+		err = json.Unmarshal(p.Body, &params)
+		if err != nil {
+			return nil, err
+		}
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		for _, v := range params {
+			if v.FieldType == FieldTypeFile {
+				part, _ := writer.CreateFormFile(v.FieldName, v.FileName)
+				io.Copy(part, bytes.NewBuffer(v.FileBytes))
 			} else {
-				return nil, errors.New("表单上传的参数格式不正确")
+				_ = writer.WriteField(v.FieldName, v.FieldValue)
+			}
+		}
+		writer.Close()
+		p.Headers.Set("Content-Type", writer.FormDataContentType())
+		return body, nil
+	case ContentTypeXml:
+		// XML
+		return bytes.NewReader(p.Body), nil
+	case ContentTypeText:
+		// TEXT
+		return bytes.NewReader(p.Body), nil
+	case ContentTypeUrlEncoded:
+		// URL编码
+		m := map[string]any{}
+		if err = json.Unmarshal(p.Body, &m); err != nil {
+			return nil, err
+		}
+		values := url.Values{}
+		for k, v := range m {
+			val, _ := convx.ToString(v)
+			values.Set(k, val)
+		}
+
+		return strings.NewReader(values.Encode()), nil
+	default:
+		if p.Method == MethodGet {
+
+			m := map[string]any{}
+			if err = json.Unmarshal(p.Body, &m); err != nil {
+				return nil, err
 			}
 
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
-			for _, v := range params {
-				if v.FieldType == FieldTypeFile {
-					part, _ := writer.CreateFormFile(v.FieldName, v.FileName)
-					io.Copy(part, bytes.NewBuffer(v.FileBytes))
-				} else {
-					_ = writer.WriteField(v.FieldName, v.FieldValue)
-				}
+			url, err := url.Parse(p.Url) // 解析URL
+			if err != nil {
+				return nil, err
 			}
-			writer.Close()
-			p.Headers["Content-Type"] = writer.FormDataContentType()
-			return body, nil
+			query := url.Query()
+			for k, v := range m {
+				val, _ := convx.ToString(v)
+				query[k] = append(query[k], val)
+			}
+			url.RawQuery = query.Encode()
+			p.Url = url.String()
 
-		} else if p.ContentType == ContentTypeXml {
-			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = ContentTypeXml
-			}
-			var string_data string
-			if value, ok := p.Body.(string); ok {
-				string_data = string(value)
-			} else {
-				var by []byte
-				by, err = xml.Marshal(p.Body)
-				if err != nil {
-					return
-				}
-				string_data = string(by)
-			}
-			return strings.NewReader(string_data), nil
-		} else if p.ContentType == ContentTypeText {
-			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = ContentTypeText
-			}
-
-			var string_data string
-			if value, ok := p.Body.(string); ok {
-				string_data = string(value)
-			} else {
-				err = errors.New("TEXT类型的参数仅支持字符串")
-				return
-			}
-
-			return strings.NewReader(string_data), nil
-		} else if p.ContentType == ContentTypeUrlEncoded {
-			if _, ok := p.Headers["Content-Type"]; !ok {
-				p.Headers["Content-Type"] = "application/x-www-form-urlencoded"
-			}
-
-			// 判断需要map[string]interface{}类型
-			paramValue, ok := p.Body.(map[string]interface{})
-			if !ok {
-				return strings.NewReader(""), errors.New("参数需map[string]interface{}")
-			}
-
-			values := url.Values{}
-			for k, v := range paramValue {
-				// 字符串
-				if v_string, ok := v.(string); ok {
-					values.Set(k, v_string)
-				}
-				// 字符串切片
-				if vv, ok := v.([]string); ok {
-					for _, vvv := range vv {
-						values.Add(k+"[]", vvv)
-					}
-				}
-				// int转string
-				if v_int, ok := v.(int); ok {
-					values.Set(k, strconv.Itoa(v_int))
-				}
-				// int64转string
-				if v_int64, ok := v.(int64); ok {
-					values.Set(k, strconv.FormatInt(v_int64, 10))
-				}
-				// float32转string
-				if v_float32, ok := v.(float32); ok {
-					values.Set(k, strconv.FormatFloat(float64(v_float32), 'f', -1, 32))
-				}
-				// float64转string
-				if v_float64, ok := v.(float64); ok {
-					values.Set(k, strconv.FormatFloat(v_float64, 'f', -1, 64))
-				}
-			}
-			return strings.NewReader(values.Encode()), nil
 		} else {
-			// 如果是GET请求
-			if p.Method == MethodGet {
-				// 判断需要map[string]interface{}类型
-				paramValue, ok := p.Body.(map[string]interface{})
-				if !ok {
-					return strings.NewReader(""), errors.New("参数需map[string]interface{}")
-				}
-				// 拼接参数到URL
-				if strings.Contains(p.Url, "?") {
-					p.Url += "&"
-				} else {
-					p.Url += "?"
-				}
-				for k, v := range paramValue {
-					// 字符串
-					if v_string, ok := v.(string); ok {
-						p.Url += k + "=" + v_string + "&"
-					}
-					// 字符串切片
-					if vv, ok := v.([]string); ok {
-						for _, vvv := range vv {
-							p.Url += k + "[]=" + vvv + "&"
-						}
-					}
-					// int转string
-					if v_int, ok := v.(int); ok {
-						p.Url += k + "=" + strconv.Itoa(v_int) + "&"
-					}
-					// int64转string
-					if v_int64, ok := v.(int64); ok {
-						p.Url += k + "=" + strconv.FormatInt(v_int64, 10) + "&"
-					}
-					// float32转string
-					if v_float32, ok := v.(float32); ok {
-						p.Url += k + "=" + strconv.FormatFloat(float64(v_float32), 'f', -1, 32) + "&"
-					}
-					// float64转string
-					if v_float64, ok := v.(float64); ok {
-						p.Url += k + "=" + strconv.FormatFloat(v_float64, 'f', -1, 64) + "&"
-					}
-				}
-			} else {
-				return nil, errors.New("curlx 不支持的数据类型")
-			}
+			return nil, errors.New("curlx 不支持的数据类型")
 		}
 
 	}
@@ -236,23 +142,8 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
  * 处理Cookie
  */
 func (p *ClientParams) parseCookies(r *http.Request) {
-	switch p.Cookies.(type) {
-	case string:
-		cookies := p.Cookies.(string)
-		r.Header.Add("Cookie", cookies)
-	case map[string]string:
-		cookies := p.Cookies.(map[string]string)
-		for k, v := range cookies {
-			r.AddCookie(&http.Cookie{
-				Name:  k,
-				Value: v,
-			})
-		}
-	case []*http.Cookie:
-		cookies := p.Cookies.([]*http.Cookie)
-		for _, cookie := range cookies {
-			r.AddCookie(cookie)
-		}
+	for _, cookie := range p.Cookies {
+		r.AddCookie(&cookie)
 	}
 }
 
