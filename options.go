@@ -10,12 +10,14 @@ type clientOptions struct {
 	TimeOut            time.Duration
 	InsecureSkipVerify bool
 	Logger             OptionLogger
+	LoggerLength       int // 日志输出长度
 }
 
 func defaultOptions() clientOptions {
 	return clientOptions{
-		TimeOut:   time.Second * 120, // 默认超时120
-		Logger:    defaultLogger{},
+		TimeOut:      time.Second * 120, // 默认超时120
+		Logger:       defaultLogger{},
+		LoggerLength: 100,
 	}
 }
 
@@ -45,6 +47,15 @@ func SetOptionTLSInsecureSkipVerify() Option {
 func SetOptionLog(log OptionLogger) Option {
 	return func(options *clientOptions) {
 		options.Logger = log
+	}
+}
+
+/**
+ * 设置日志输出长度
+ */
+func WithLoggerLength(length int) Option {
+	return func(options *clientOptions) {
+		options.LoggerLength = length
 	}
 }
 

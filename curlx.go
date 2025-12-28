@@ -2,10 +2,8 @@ package curlx
 
 import (
 	"bufio"
-	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -122,43 +120,29 @@ func (c *Curlx) WithAddress(ctx context.Context, addr string) {
 /**
  * 简单请求
  */
-func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, httpcode int, err error) {
-	_, response, err := c.SendExec(ctx, p...)
-	if err != nil {
-		return nil, -1, err
+func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, err error) {
+	resp := c.exec(ctx, p...)
+	if resp.Err != nil {
+		return nil, resp.Err
+	}
+	defer resp.Close() // 处理完关闭
+
+	status := resp.GetStatusCode()
+	if status != 200 {
+		return nil, ErrStatusNotOK
 	}
 
-	defer response.Body.Close() // 处理完关闭
-
-	// stdout := os.Stdout                     // 将结果定位到标准输出，也可以直接打印出来，或定位到其他地方进行相应处理
-	// _, err = io.Copy(stdout, response.Body) // 将第二个参数拷贝到第一个参数，直到第二参数到达EOF或发生错误，返回拷贝的值
-	status := response.StatusCode // 获取状态码，正常是200
-
-	var body []byte
-
-	if response.Header.Get("Content-Encoding") == "gzip" {
-		reader, err := gzip.NewReader(response.Body)
-		if err != nil {
-			return nil, response.StatusCode, err
-		}
-		body, err = io.ReadAll(reader)
-		if err != nil {
-			return nil, response.StatusCode, err
-		}
-		defer reader.Close()
-	} else {
-		body, err = io.ReadAll(response.Body)
-		if err != nil {
-			return nil, response.StatusCode, err
-		}
+	body, err := resp.GetBody()
+	if err != nil {
+		return nil, err
 	}
 
 	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
-	return body, status, nil
+	return body, nil
 }
 
 // PostJson 发送JSON数据
-func (l *Curlx) PostJson(ctx context.Context, url string, jsonStr string) ([]byte, int, error) {
+func (l *Curlx) PostJson(ctx context.Context, url string, jsonStr string) ([]byte, error) {
 	return l.Send(ctx,
 		SetParamsUrl(url),
 		SetParamsBody([]byte(jsonStr)),
@@ -168,55 +152,24 @@ func (l *Curlx) PostJson(ctx context.Context, url string, jsonStr string) ([]byt
 }
 
 // Get 简单GET请求
-func (l *Curlx) Get(ctx context.Context, url string) ([]byte, int, error) {
+func (l *Curlx) Get(ctx context.Context, url string) ([]byte, error) {
 	return l.Send(ctx,
 		SetParamsUrl(url),
 		SetParamsMethod(MethodGet),
 	)
 }
 
-func (c *Curlx) SendWithResponee(ctx context.Context, ps ...Param) Response {
-	r := Response{}
-	req, resp, err := c.SendExec(ctx, ps...)
-	r.req = req
-	r.resp = resp
-
-	if err != nil {
-		r.err = err
-		return r
-	}
-	var body []byte
-
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		reader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			r.err = err
-			return r
-		}
-		body, err = io.ReadAll(reader)
-		if err != nil {
-			r.err = err
-			return r
-		}
-		defer reader.Close()
-	} else {
-		body, err = io.ReadAll(resp.Body)
-		if err != nil {
-			r.err = err
-			return r
-		}
-	}
-
-	r.body = body
-	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
-	return r
+func (c *Curlx) SendWithResponse(ctx context.Context, ps ...Param) Response {
+	return c.exec(ctx, ps...)
 }
 
 /**
  * 执行发送
  * 注意：外部使用需要加这一句 defer response.Body.Close()
  */
-func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, resp *http.Response, err error) {
+func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
+	resp := Response{}
+
 	client := &http.Client{
 		Timeout:   c.opts.TimeOut, // 整个请求的超时时间 设置该条连接的超时
 		Transport: c.transport,    //
@@ -228,23 +181,27 @@ func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	}
 	c.opts.Logger.Infof(ctx, "curlx.sendExec params:%+v", p)
 
-	err = p.parseMethod()
+	err := p.parseMethod()
 	if err != nil {
-		return nil, nil, err
+		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseMethod err:%v", err)
+		resp.Err = err
+		return resp
 	}
 
 	// 判断和处理url
 	err = p.parseUrl()
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseUrl err:%v", err)
-		return nil, nil, err
+		resp.Err = err
+		return resp
 	}
 
 	// 处理参数
 	reqParams, err := p.parseParams()
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseParams err:%v", err)
-		return nil, nil, err
+		resp.Err = err
+		return resp
 	}
 
 	// 初始化句柄
@@ -255,8 +212,12 @@ func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	)
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec NewRequest err:%v", err)
-		return nil, nil, err
+		resp.Err = err
+		return resp
 	}
+
+	c.opts.Logger.Infof(ctx, "curlx.sendExec request:%+v", request)
+	resp.Request = request
 
 	// 这里指定要访问的HOST,到时候服务器获取主机是获取到这个
 	// request.Host = "api.hk.blueoceantech.co"
@@ -274,10 +235,12 @@ func (c *Curlx) SendExec(ctx context.Context, ps ...Param) (req *http.Request, r
 	response, err := client.Do(request)
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec client.Do err:%v", err)
-		return nil, nil, err
+		resp.Err = err
+		return resp
 	}
-	// response.StatusCode
-	return request, response, nil
+	resp.Response = response
+
+	return resp
 }
 
 /**
@@ -293,13 +256,12 @@ func (c *Curlx) SendStream(ctx context.Context, ps ...Param) (<-chan string, err
 		ctx, cancel := context.WithTimeout(context.Background(), c.opts.TimeOut)
 		defer cancel()
 
-		_, response, err := c.SendExec(ctx, ps...)
-		if err != nil {
+		response := c.exec(ctx, ps...)
+		if response.Err != nil {
 			return
 		}
-		defer response.Body.Close() // 处理完关闭
-
-		scanner := bufio.NewScanner(response.Body)
+		defer response.Close() // 处理完关闭
+		scanner := bufio.NewScanner(response.Response.Body)
 		for scanner.Scan() {
 			text := scanner.Text()
 			if text == "" {

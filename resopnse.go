@@ -1,6 +1,8 @@
 package curlx
 
 import (
+	"compress/gzip"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -10,70 +12,77 @@ import (
 
 // Response response object
 type Response struct {
-	resp *http.Response
-	req  *http.Request
-	body []byte
-	err  error
+	Response *http.Response
+	Request  *http.Request
+	Body     []byte
+	Err      error
 }
 
-// ResponseBody response body
-type ResponseBody []byte
-
-// String fmt outout
-func (r ResponseBody) String() string {
-	return string(r)
-}
-
-// Read get slice of response body
-func (r ResponseBody) Read(length int) []byte {
-	if length > len(r) {
-		length = len(r)
+func (l *Response) Close() error {
+	if l.Response.Body != nil {
+		return l.Response.Body.Close()
 	}
-
-	return r[:length]
-}
-
-// GetContents format response body as string
-func (r ResponseBody) GetContents() string {
-	return string(r)
+	return nil
 }
 
 // GetRequest get request object
 func (r *Response) GetRequest() *http.Request {
-	return r.req
+	return r.Request
+}
+
+func (r *Response) GetResponse() *http.Response {
+	return r.Response
 }
 
 // GetBody parse response body
-func (r *Response) GetBody() (ResponseBody, error) {
-	return ResponseBody(r.body), r.err
+func (r *Response) GetBody() ([]byte, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	if r.Body != nil {
+		return r.Body, nil
+	}
+	if r.Response == nil {
+		return nil, nil
+	}
+	body := []byte{}
+	var err error
+	if r.Response.Header.Get("Content-Encoding") == "gzip" {
+		reader, err := gzip.NewReader(r.Response.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer reader.Close()
+		body, err = io.ReadAll(reader)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		body, err = io.ReadAll(r.Response.Body)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// close body
+	r.Response.Body.Close()
+
+	r.Body = body
+	return body, err
 }
 
-// GetParsedBody parse response body with gjson
-func (r *Response) GetParsedBody() (*gjson.Result, error) {
-	pb := gjson.ParseBytes(r.body)
-
-	return &pb, nil
-}
-
-// GetStatusCode get response status code
-func (r *Response) GetStatusCode() int {
-	return r.resp.StatusCode
-}
-
-// GetReasonPhrase get response reason phrase
-func (r *Response) GetReasonPhrase() string {
-	status := r.resp.Status
-	arr := strings.Split(status, " ")
-
-	return arr[1]
+func (r Response) GetStatusCode() int {
+	if r.Response == nil {
+		return 0
+	}
+	return r.Response.StatusCode
 }
 
 // IsTimeout get if request is timeout
 func (r *Response) IsTimeout() bool {
-	if r.err == nil {
+	if r.Err == nil {
 		return false
 	}
-	netErr, ok := r.err.(net.Error)
+	netErr, ok := r.Err.(net.Error)
 	if !ok {
 		return false
 	}
@@ -84,9 +93,20 @@ func (r *Response) IsTimeout() bool {
 	return false
 }
 
+// GetParsedBody parse response body with gjson
+func (r *Response) GetParsedBody() (*gjson.Result, error) {
+	body, err := r.GetBody()
+	if err != nil {
+		return nil, err
+	}
+	pb := gjson.ParseBytes(body)
+
+	return &pb, nil
+}
+
 // GetHeaders get response headers
 func (r *Response) GetHeaders() map[string][]string {
-	return r.resp.Header
+	return r.Response.Header
 }
 
 // GetHeader get response header
