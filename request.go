@@ -105,7 +105,7 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 		}
 		values := url.Values{}
 		for k, v := range m {
-			val, _ := convx.ToString(v)
+			val := convx.ToString(v)
 			values.Set(k, val)
 		}
 
@@ -124,7 +124,7 @@ func (p *ClientParams) parseParams() (str io.Reader, err error) {
 			}
 			query := url.Query()
 			for k, v := range m {
-				val, _ := convx.ToString(v)
+				val := convx.ToString(v)
 				query[k] = append(query[k], val)
 			}
 			url.RawQuery = query.Encode()
