@@ -60,18 +60,18 @@ func WithLoggerLength(length int) Option {
 }
 
 type OptionLogger interface {
-	Infof(ctx context.Context, format string, args ...interface{})
-	Errorf(ctx context.Context, format string, args ...interface{})
+	Infof(ctx context.Context, format string, args ...any)
+	Errorf(ctx context.Context, format string, args ...any)
 }
 
 type defaultLogger struct{}
 
-func (defaultLogger) Errorf(ctx context.Context, format string, args ...interface{}) {
+func (defaultLogger) Errorf(ctx context.Context, format string, args ...any) {
 	// 输出日志
 	log.Printf(format, args...)
 }
 
-func (defaultLogger) Infof(ctx context.Context, format string, args ...interface{}) {
+func (defaultLogger) Infof(ctx context.Context, format string, args ...any) {
 	// 输出日志
 	log.Printf(format, args...)
 }
