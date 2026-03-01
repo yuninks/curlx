@@ -3,7 +3,7 @@ package curlx
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,7 +20,7 @@ import (
 // type DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 
 type Curlx struct {
-	opts      clientOptions
+	opts      ClientOptions
 	transport *http.Transport
 }
 
@@ -31,31 +31,13 @@ func NewCurlx(opts ...Option) *Curlx {
 	}
 
 	transport := &http.Transport{
-		// Dial: func(netw, addr string) (net.Conn, error) {
-		// 	// 这里指定域名访问的IP
-		// 	// if addr == "api.hk.blueoceanpay.com:443" {
-		// 	// 	addr = "47.56.200.21:443"
-		// 	// }
-		// 	conn, err := net.DialTimeout(netw, addr, time.Second*time.Duration(timeOut)) // 设置建立连接超时
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		// 	// conn.RemoteAddr().String()
-		// 	conn.SetDeadline(time.Now().Add(time.Second * time.Duration(timeOut))) // 设置发送接收数据超时
-		// 	return conn, nil
-		// },
-		// DialContext: (&net.Dialer{
-		// 	Timeout:   3 * time.Second, // 建立TCP链接的超时时间
-		// 	KeepAlive: 30 * time.Second, // TCP keepalive超时时间
-		// }).DialContext,
-		// TLSHandshakeTimeout: time.Second * 10, // TLS握手超时
-		// ResponseHeaderTimeout: time.Second * 10, // 接收响应头的超时时间
-		// ExpectContinueTimeout: time.Second * 10, // 发送请求头超时时间 100-continue状态码超时时间
-		DisableKeepAlives:   false,           // 短连接（默认是使用长连接，连接过多时会造成服务器拒绝服务问题）
-		MaxIdleConns:        0,               // 所有host的连接池最大连接数量，默认无穷大
-		MaxIdleConnsPerHost: 5,               // 每个host的连接池最大空闲连接收，默认2
-		MaxConnsPerHost:     0,               // 每个host的最大连接数量
-		IdleConnTimeout:     time.Second * 2, // 空闲连接超时关闭的时间
+		DisableKeepAlives:     false, // 启用keep-alive连接复用
+		MaxIdleConns:          defaultOpts.MaxIdleConns,
+		MaxIdleConnsPerHost:   defaultOpts.MaxIdleConnsPerHost,
+		MaxConnsPerHost:       defaultOpts.MaxConnsPerHost,
+		IdleConnTimeout:       defaultOpts.IdleConnTimeout,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 	}
 
 	if defaultOpts.InsecureSkipVerify {
@@ -84,7 +66,7 @@ func (c *Curlx) WithProxySocks5(address string) error {
 	}
 	dialSocksProxy, err := proxy.SOCKS5("tcp", address, nil, baseDialer)
 	if err != nil {
-		fmt.Println("proxy.SOCKS5 err", err)
+		c.opts.Logger.Errorf(context.Background(), "proxy.SOCKS5 err: %v", err)
 		return err
 	}
 	dialContext := (baseDialer).DialContext
@@ -102,6 +84,7 @@ func (c *Curlx) WithProxySocks5(address string) error {
 func (c *Curlx) WithProxyHttp(proxyAddr string) error {
 	proxy, err := url.Parse(proxyAddr)
 	if err != nil {
+		c.opts.Logger.Errorf(context.Background(), "proxy.HTTP/HTTPS err: %v", err)
 		return err
 	}
 	c.transport.Proxy = http.ProxyURL(proxy)
@@ -180,6 +163,14 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	client := &http.Client{
 		Timeout:   c.opts.TimeOut, // 整个请求的超时时间 设置该条连接的超时
 		Transport: c.transport,    //
+	}
+
+	// 在http.Client中添加CheckRedirect函数 实现重定向控制
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 { // 限制重定向次数
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
 	}
 
 	p := defaultParams()
