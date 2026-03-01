@@ -129,15 +129,22 @@ func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, err error) {
 
 	status := resp.GetStatusCode()
 	if status != 200 {
+		c.opts.Logger.Errorf(ctx, "curlx.Send status not OK: %d", status)
 		return nil, ErrStatusNotOK
 	}
 
 	body, err := resp.GetBody()
 	if err != nil {
+		c.opts.Logger.Errorf(ctx, "curlx.Send getBody err:%v", err)
 		return nil, err
 	}
 
-	c.opts.Logger.Infof(ctx, "curlx.Send body:%s", string(body))
+	// 打印日志时截取前指定长度，避免日志过大
+	bodyLog := []rune(string(body))
+	if len(bodyLog) > c.opts.LoggerLength {
+		bodyLog = bodyLog[:c.opts.LoggerLength]
+	}
+	c.opts.Logger.Infof(ctx, "curlx.Send response body:%s", string(bodyLog))
 	return body, nil
 }
 
