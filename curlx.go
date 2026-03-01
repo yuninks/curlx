@@ -179,7 +179,14 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	for _, param := range ps {
 		param(&p)
 	}
-	c.opts.Logger.Infof(ctx, "curlx.sendExec params:%+v", p)
+
+	// 截取Body前指定长度输出，避免日志过大
+	bodyLog := []rune(string(p.Body))
+	if len(bodyLog) > c.opts.LoggerLength {
+		bodyLog = bodyLog[:c.opts.LoggerLength]
+	}
+
+	c.opts.Logger.Infof(ctx, "curlx.sendExec params url:%s method:%s contentType:%s body:%s headers:%+v cookies:%+v", p.Url, p.Method, p.ContentType, string(bodyLog), p.Headers, p.Cookies)
 
 	err := p.parseMethod()
 	if err != nil {
