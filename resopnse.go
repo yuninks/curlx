@@ -34,6 +34,10 @@ func (r *Response) GetResponse() *http.Response {
 	return r.response
 }
 
+func (r *Response) GetError() error {
+	return r.err
+}
+
 // GetBody parse response body
 func (r *Response) GetBody() ([]byte, error) {
 	if r.err != nil {
