@@ -105,8 +105,8 @@ func (c *Curlx) WithAddress(ctx context.Context, addr string) {
  */
 func (c *Curlx) Send(ctx context.Context, p ...Param) (res []byte, err error) {
 	resp := c.exec(ctx, p...)
-	if resp.Err != nil {
-		return nil, resp.Err
+	if resp.err != nil {
+		return nil, resp.err
 	}
 	defer resp.Close() // 处理完关闭
 
@@ -189,7 +189,7 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	err := p.parseMethod()
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseMethod err:%v", err)
-		resp.Err = err
+		resp.err = err
 		return resp
 	}
 
@@ -197,7 +197,7 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	err = p.parseUrl()
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseUrl err:%v", err)
-		resp.Err = err
+		resp.err = err
 		return resp
 	}
 
@@ -205,7 +205,7 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	reqParams, err := p.parseParams()
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec parseParams err:%v", err)
-		resp.Err = err
+		resp.err = err
 		return resp
 	}
 
@@ -217,12 +217,12 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	)
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec NewRequest err:%v", err)
-		resp.Err = err
+		resp.err = err
 		return resp
 	}
 
 	c.opts.Logger.Infof(ctx, "curlx.sendExec request:%+v", request)
-	resp.Request = request
+	resp.request = request
 
 	// 这里指定要访问的HOST,到时候服务器获取主机是获取到这个
 	// request.Host = "api.hk.blueoceantech.co"
@@ -240,10 +240,10 @@ func (c *Curlx) exec(ctx context.Context, ps ...Param) Response {
 	response, err := client.Do(request)
 	if err != nil {
 		c.opts.Logger.Errorf(ctx, "curlx.sendExec client.Do err:%v", err)
-		resp.Err = err
+		resp.err = err
 		return resp
 	}
-	resp.Response = response
+	resp.response = response
 
 	return resp
 }
@@ -262,11 +262,11 @@ func (c *Curlx) SendStream(ctx context.Context, ps ...Param) (<-chan string, err
 		defer cancel()
 
 		response := c.exec(ctx, ps...)
-		if response.Err != nil {
+		if response.err != nil {
 			return
 		}
 		defer response.Close() // 处理完关闭
-		scanner := bufio.NewScanner(response.Response.Body)
+		scanner := bufio.NewScanner(response.response.Body)
 		for scanner.Scan() {
 			text := scanner.Text()
 			if text == "" {

@@ -12,43 +12,43 @@ import (
 
 // Response response object
 type Response struct {
-	Response *http.Response
-	Request  *http.Request
-	Body     []byte
-	Err      error
+	response *http.Response
+	request  *http.Request
+	body     []byte
+	err      error
 }
 
 func (l *Response) Close() error {
-	if l.Response.Body != nil {
-		return l.Response.Body.Close()
+	if l.response.Body != nil {
+		return l.response.Body.Close()
 	}
 	return nil
 }
 
 // GetRequest get request object
 func (r *Response) GetRequest() *http.Request {
-	return r.Request
+	return r.request
 }
 
 func (r *Response) GetResponse() *http.Response {
-	return r.Response
+	return r.response
 }
 
 // GetBody parse response body
 func (r *Response) GetBody() ([]byte, error) {
-	if r.Err != nil {
-		return nil, r.Err
+	if r.err != nil {
+		return nil, r.err
 	}
-	if r.Body != nil {
-		return r.Body, nil
+	if r.body != nil {
+		return r.body, nil
 	}
-	if r.Response == nil {
+	if r.response == nil {
 		return nil, nil
 	}
 	body := []byte{}
 	var err error
-	if r.Response.Header.Get("Content-Encoding") == "gzip" {
-		reader, err := gzip.NewReader(r.Response.Body)
+	if r.response.Header.Get("Content-Encoding") == "gzip" {
+		reader, err := gzip.NewReader(r.response.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -58,31 +58,31 @@ func (r *Response) GetBody() ([]byte, error) {
 			return nil, err
 		}
 	} else {
-		body, err = io.ReadAll(r.Response.Body)
+		body, err = io.ReadAll(r.response.Body)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// close body
-	r.Response.Body.Close()
+	r.response.Body.Close()
 
-	r.Body = body
+	r.body = body
 	return body, err
 }
 
 func (r Response) GetStatusCode() int {
-	if r.Response == nil {
+	if r.response == nil {
 		return 0
 	}
-	return r.Response.StatusCode
+	return r.response.StatusCode
 }
 
 // IsTimeout get if request is timeout
 func (r *Response) IsTimeout() bool {
-	if r.Err == nil {
+	if r.err == nil {
 		return false
 	}
-	netErr, ok := r.Err.(net.Error)
+	netErr, ok := r.err.(net.Error)
 	if !ok {
 		return false
 	}
@@ -106,7 +106,10 @@ func (r *Response) GetParsedBody() (*gjson.Result, error) {
 
 // GetHeaders get response headers
 func (r *Response) GetHeaders() map[string][]string {
-	return r.Response.Header
+	if r.response == nil {
+		return nil
+	}
+	return r.response.Header
 }
 
 // GetHeader get response header
