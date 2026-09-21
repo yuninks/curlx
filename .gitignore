@@ -1,0 +1,15 @@
+# 编译产物
+*.exe
+*.test
+*.out
+
+# 覆盖率与 profile
+coverage.*
+cpu.out
+mem.out
+*.prof
+
+# 编辑器
+.idea/
+.vscode/
+*.swp

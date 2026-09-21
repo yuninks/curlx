@@ -2,148 +2,140 @@ package example
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/yuninks/curlx"
 )
 
-func TestConnectionReuse(t *testing.T) {
-	// 创建带优化连接池配置的客户端
-	client := curlx.NewCurlx(
-		curlx.WithMaxIdleConns(50),
-		curlx.WithMaxIdleConnsPerHost(10),
-		curlx.WithMaxConnsPerHost(20),
-		curlx.WithIdleConnTimeout(60*time.Second),
-		curlx.WithOptionTimeOut(30*time.Second),
-	)
-
-	// 测试同一个主机的多次请求，观察连接复用效果
-	targetURL := "https://httpbin.org/get"
-
-	fmt.Println("=== 连接复用测试开始 ===")
-
-	// 预热连接
-	fmt.Println("1. 预热连接...")
-	ctx1, cancel1 := context.WithTimeout(context.Background(), 10*time.Second)
-	_, err := client.Get(ctx1, targetURL)
-	cancel1()
-	if err != nil {
-		t.Logf("预热请求失败: %v", err)
-		return
-	}
-	fmt.Println("   预热完成")
-
-	// 连续请求测试
-	fmt.Println("\n2. 连续请求测试...")
-	for i := 1; i <= 5; i++ {
-		start := time.Now()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-		response, err := client.Get(ctx, targetURL)
-		duration := time.Since(start)
-
-		cancel()
-
-		if err != nil {
-			t.Logf("第%d次请求失败: %v (耗时: %v)", i, err, duration)
-		} else {
-			t.Logf("第%d次请求成功: %d字节 (耗时: %v)", i, len(response), duration)
-		}
-
-		time.Sleep(200 * time.Millisecond) // 短暂间隔
-	}
-
-	fmt.Println("\n=== 测试完成 ===")
-}
-
-func TestConcurrentConnectionReuse(t *testing.T) {
-	// 创建连接池管理器
-	poolManager := NewConnectionPoolManager(
-		curlx.WithMaxIdleConns(100),
-		curlx.WithMaxIdleConnsPerHost(20),
-		curlx.WithMaxConnsPerHost(30),
-		curlx.WithIdleConnTimeout(120*time.Second),
-	)
-
-	// 测试并发请求
-	urls := []string{
-		"https://httpbin.org/get",
-		"https://httpbin.org/uuid",
-		"https://httpbin.org/user-agent",
-		"https://httpbin.org/headers",
-		"https://httpbin.org/ip",
-	}
-
-	fmt.Println("=== 并发连接复用测试 ===")
-	poolManager.ConcurrentRequests(urls)
-}
-
-func TestPersistentConnection(t *testing.T) {
-	// 创建优化的客户端
-	client := curlx.NewCurlx(
-		curlx.WithMaxIdleConns(30),
-		curlx.WithMaxIdleConnsPerHost(5),
-		curlx.WithMaxConnsPerHost(15),
-		curlx.WithIdleConnTimeout(30*time.Second),
-	)
-
-	manager := &ConnectionPoolManager{
-		client: client,
-		// transport: client.transport,
-	}
-
-	fmt.Println("=== 持久连接测试 ===")
-	manager.PersistentConnectionExample("https://httpbin.org/delay/1")
-}
-
+// Example_connectionReuse 演示连接复用：复用同一个客户端请求同一主机时，
+// 只有第一次需要新建 TCP 连接。
 func Example_connectionReuse() {
-	// 最佳实践示例：如何正确配置连接复用
+	srv := demoServer()
+	defer srv.Close()
 
-	// 1. 创建优化配置的客户端
-	client := curlx.NewCurlx(
-		// 连接池配置
-		curlx.WithMaxIdleConns(100),               // 总空闲连接数
-		curlx.WithMaxIdleConnsPerHost(10),         // 每主机空闲连接数
-		curlx.WithMaxConnsPerHost(50),             // 每主机最大连接数
-		curlx.WithIdleConnTimeout(90*time.Second), // 空闲超时时间
+	manager := NewConnectionPoolManager(curlx.WithTimeout(10 * time.Second))
 
-		// 其他优化配置
-		curlx.WithOptionTimeOut(30*time.Second),
-	)
-
-	// 2. 复用同一个客户端实例进行多次请求
-	ctx := context.Background()
-
-	// 第一次请求会建立新连接
-	response1, err := client.Get(ctx, "https://httpbin.org/get")
-	if err != nil {
-		fmt.Printf("首次请求失败: %v\n", err)
-		return
+	for i := 0; i < 5; i++ {
+		if _, err := manager.Get(context.Background(), srv.URL+"/api/user/42"); err != nil {
+			fmt.Println("err:", err)
+			return
+		}
 	}
-	fmt.Printf("首次请求成功: %d字节\n", len(response1))
-
-	// 后续请求会复用已有连接
-	response2, err := client.Get(ctx, "https://httpbin.org/uuid")
-	if err != nil {
-		fmt.Printf("第二次请求失败: %v\n", err)
-		return
-	}
-	fmt.Printf("第二次请求成功: %d字节\n", len(response2))
-
-	// 3. 查看连接池状态
-	manager := &ConnectionPoolManager{
-		client:    client,
-		// transport: client.transport,
-	}
-	manager.PrintPoolStats()
+	manager.PrintStats()
+	manager.CloseIdleConnections()
 
 	// Output:
-	// 首次请求成功: [字节数]
-	// 第二次请求成功: [字节数]
 	// === 连接池统计 ===
-	// 当前空闲连接数: 1
-	// 总连接数: 1
-	// 等待队列长度: 0
+	// 新建连接: 1
+	// 复用连接: 4
+}
+
+// Example_reuseAfterErrorStatus 演示非 2xx 响应也会被完整读完，连接因此可以继续复用。
+//
+// 如果只用 SendWithResponse 却既不读 body、也不 drain 就 Close，连接无法复用，
+// 每次错误都会新建 TCP 连接（Get/Send 已经替你做完了这件事）。
+func Example_reuseAfterErrorStatus() {
+	srv := demoServer()
+	defer srv.Close()
+
+	manager := NewConnectionPoolManager()
+
+	// ?big=1 让服务端返回 200KB 的错误响应体
+	for i := 0; i < 3; i++ {
+		_, err := manager.Get(context.Background(), srv.URL+"/api/error?big=1")
+
+		var statusErr *curlx.StatusError
+		if errors.As(err, &statusErr) {
+			fmt.Printf("status: %d, 错误体截断到 %d 字节\n", statusErr.StatusCode, len(statusErr.Body))
+		}
+	}
+	manager.PrintStats()
+
+	// Output:
+	// status: 500, 错误体截断到 512 字节
+	// status: 500, 错误体截断到 512 字节
+	// status: 500, 错误体截断到 512 字节
+	// === 连接池统计 ===
+	// 新建连接: 1
+	// 复用连接: 2
+}
+
+// Example_separatePools 演示不同客户端各自维护连接池，互不复用。
+func Example_separatePools() {
+	srv := demoServer()
+	defer srv.Close()
+
+	first := NewConnectionPoolManager()
+	second := NewConnectionPoolManager()
+
+	for _, m := range []*ConnectionPoolManager{first, second} {
+		if _, err := m.Get(context.Background(), srv.URL+"/api/user/42"); err != nil {
+			fmt.Println("err:", err)
+			return
+		}
+	}
+
+	created1, _ := first.Stats()
+	created2, _ := second.Stats()
+	fmt.Println("客户端1 新建连接:", created1)
+	fmt.Println("客户端2 新建连接:", created2)
+
+	// Output:
+	// 客户端1 新建连接: 1
+	// 客户端2 新建连接: 1
+}
+
+// TestConcurrentRequests 演示并发请求：连接数受 MaxConnsPerHost 约束，
+// 请求结束后多余的连接会被回收，不会无限增长。
+func TestConcurrentRequests(t *testing.T) {
+	srv := demoServer()
+	defer srv.Close()
+
+	const (
+		workers   = 10
+		perWorker = 5
+	)
+
+	manager := NewConnectionPoolManager(
+		curlx.WithMaxConnsPerHost(4), // 每主机最多 4 条连接，其余请求排队复用
+		curlx.WithTimeout(10*time.Second),
+	)
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perWorker; j++ {
+				if _, err := manager.Get(context.Background(), srv.URL+"/api/user/42"); err != nil {
+					errCh <- err
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatalf("并发请求失败: %v", err)
+	}
+
+	created, reused := manager.Stats()
+	total := created + reused
+	if total != workers*perWorker {
+		t.Fatalf("请求总数 %d != %d", total, workers*perWorker)
+	}
+	if created > 4 {
+		t.Fatalf("MaxConnsPerHost=4 时新建连接不应超过 4，实际 %d", created)
+	}
+	if reused == 0 {
+		t.Fatal("并发请求应当产生连接复用")
+	}
+	t.Logf("新建连接 %d，复用连接 %d", created, reused)
+	manager.CloseIdleConnections()
 }
